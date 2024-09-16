@@ -1,53 +1,419 @@
-Data format in `dataset_info.json`:
+The [dataset_info.json](dataset_info.json) contains all available datasets. If you are using a custom dataset, please **make sure** to add a *dataset description* in `dataset_info.json` and specify `dataset: dataset_name` before training to use it.
+
+Currently we support datasets in **alpaca** and **sharegpt** format.
+
 ```json
 "dataset_name": {
-    "hf_hub_url": "the name of the dataset repository on the HuggingFace hub. (if specified, ignore below 3 arguments)",
-    "script_url": "the name of the directory containing a dataset loading script. (if specified, ignore below 2 arguments)",
-    "file_name": "the name of the dataset file in the this directory. (required if above are not specified)",
-    "file_sha1": "the SHA-1 hash value of the dataset file. (optional)",
-    "columns": {
-        "prompt": "the name of the column in the datasets containing the prompts. (default: instruction)",
-        "query": "the name of the column in the datasets containing the queries. (default: input)",
-        "response": "the name of the column in the datasets containing the responses. (default: output)",
-        "history": "the name of the column in the datasets containing the history of chat. (default: None)"
-    }
+  "hf_hub_url": "the name of the dataset repository on the Hugging Face hub. (if specified, ignore script_url and file_name)",
+  "ms_hub_url": "the name of the dataset repository on the Model Scope hub. (if specified, ignore script_url and file_name)",
+  "script_url": "the name of the directory containing a dataset loading script. (if specified, ignore file_name)",
+  "file_name": "the name of the dataset folder or dataset file in this directory. (required if above are not specified)",
+  "formatting": "the format of the dataset. (optional, default: alpaca, can be chosen from {alpaca, sharegpt})",
+  "ranking": "whether the dataset is a preference dataset or not. (default: False)",
+  "subset": "the name of the subset. (optional, default: None)",
+  "split": "the name of dataset split to be used. (optional, default: train)",
+  "folder": "the name of the folder of the dataset repository on the Hugging Face hub. (optional, default: None)",
+  "num_samples": "the number of samples in the dataset to be used. (optional, default: None)",
+  "columns (optional)": {
+    "prompt": "the column name in the dataset containing the prompts. (default: instruction)",
+    "query": "the column name in the dataset containing the queries. (default: input)",
+    "response": "the column name in the dataset containing the responses. (default: output)",
+    "history": "the column name in the dataset containing the histories. (default: None)",
+    "messages": "the column name in the dataset containing the messages. (default: conversations)",
+    "system": "the column name in the dataset containing the system prompts. (default: None)",
+    "tools": "the column name in the dataset containing the tool description. (default: None)",
+    "images": "the column name in the dataset containing the image inputs. (default: None)",
+    "videos": "the column name in the dataset containing the videos inputs. (default: None)",
+    "chosen": "the column name in the dataset containing the chosen answers. (default: None)",
+    "rejected": "the column name in the dataset containing the rejected answers. (default: None)",
+    "kto_tag": "the column name in the dataset containing the kto tags. (default: None)"
+  },
+  "tags (optional, used for the sharegpt format)": {
+    "role_tag": "the key in the message represents the identity. (default: from)",
+    "content_tag": "the key in the message represents the content. (default: value)",
+    "user_tag": "the value of the role_tag represents the user. (default: human)",
+    "assistant_tag": "the value of the role_tag represents the assistant. (default: gpt)",
+    "observation_tag": "the value of the role_tag represents the tool results. (default: observation)",
+    "function_tag": "the value of the role_tag represents the function call. (default: function_call)",
+    "system_tag": "the value of the role_tag represents the system prompt. (default: system, can override system column)"
+  }
 }
 ```
 
-`dataset_info.json` 中的数据集定义格式：
+## Alpaca Format
+
+### Supervised Fine-Tuning Dataset
+
+* [Example dataset](alpaca_en_demo.json)
+
+In supervised fine-tuning, the `instruction` column will be concatenated with the `input` column and used as the human prompt, then the human prompt would be `instruction\ninput`. The `output` column represents the model response.
+
+The `system` column will be used as the system prompt if specified.
+
+The `history` column is a list consisting of string tuples representing prompt-response pairs in the history messages. Note that the responses in the history **will also be learned by the model** in supervised fine-tuning.
+
 ```json
-"数据集名称": {
-    "hf_hub_url": "HuggingFace上的项目地址（若指定，则忽略下列三个参数）",
-    "script_url": "包含数据加载脚本的本地文件夹名称（若指定，则忽略下列两个参数）",
-    "file_name": "该目录下数据集文件的名称（若上述参数未指定，则此项必需）",
-    "file_sha1": "数据集文件的SHA-1哈希值（可选）",
-    "columns": {
-        "prompt": "数据集代表提示词的表头名称（默认：instruction）",
-        "query": "数据集代表请求的表头名称（默认：input）",
-        "response": "数据集代表回答的表头名称（默认：output）",
-        "history": "数据集代表历史对话的表头名称（默认：None）"
-    }
+[
+  {
+    "instruction": "human instruction (required)",
+    "input": "human input (optional)",
+    "output": "model response (required)",
+    "system": "system prompt (optional)",
+    "history": [
+      ["human instruction in the first round (optional)", "model response in the first round (optional)"],
+      ["human instruction in the second round (optional)", "model response in the second round (optional)"]
+    ]
+  }
+]
+```
+
+Regarding the above dataset, the *dataset description* in `dataset_info.json` should be:
+
+```json
+"dataset_name": {
+  "file_name": "data.json",
+  "columns": {
+    "prompt": "instruction",
+    "query": "input",
+    "response": "output",
+    "system": "system",
+    "history": "history"
+  }
 }
 ```
 
-部分预置数据集简介：
+### Pre-training Dataset
 
-| 数据集名称 | 规模 | 描述 |
-| --- | --- | --- |
-| [Stanford Alpaca](https://github.com/tatsu-lab/stanford_alpaca) | 52k | 斯坦福大学开源的 Alpaca 数据集，训练了 Alpaca 这类早期基于 LLaMA 的模型 |
-| [Stanford Alpaca (Chinese)](https://github.com/ymcui/Chinese-LLaMA-Alpaca) | 51k | 使用 ChatGPT 翻译的 Alpaca 数据集 |
-| [GPT-4 Generated Data](https://github.com/Instruction-Tuning-with-GPT-4/GPT-4-LLM) | 100k+ | 基于 GPT-4 的 self-instruction 数据集 |
-| [BELLE 2M](https://huggingface.co/datasets/BelleGroup/train_2M_CN) | 2m | 包含约 200 万条由 [BELLE](https://github.com/LianjiaTech/BELLE) 项目生成的中文指令数据 |
-| [BELLE 1M](https://huggingface.co/datasets/BelleGroup/train_1M_CN) | 1m | 包含约 100 万条由 [BELLE](https://github.com/LianjiaTech/BELLE) 项目生成的中文指令数据 |
-| [BELLE 0.5M](https://huggingface.co/datasets/BelleGroup/train_0.5M_CN) | 500k  | 包含约 50 万条由 [BELLE](https://github.com/LianjiaTech/BELLE) 项目生成的中文指令数据 |
-| [BELLE Dialogue 0.4M](https://huggingface.co/datasets/BelleGroup/generated_chat_0.4M) | 400k | 包含约 40 万条由 [BELLE](https://github.com/LianjiaTech/BELLE) 项目生成的个性化角色对话数据，包含角色介绍 |
-| [BELLE School Math 0.25M](https://huggingface.co/datasets/BelleGroup/school_math_0.25M) | 250k  | 包含约 25 万条由 [BELLE](https://github.com/LianjiaTech/BELLE) 项目生成的中文数学题数据，包含解题过程 |
-| [BELLE Multiturn Chat 0.8M](https://huggingface.co/datasets/BelleGroup/multiturn_chat_0.8M) | 800k | 包含约 80 万条由 [BELLE](https://github.com/LianjiaTech/BELLE) 项目生成的用户与助手的多轮对话 |
-| [Guanaco Dataset](https://huggingface.co/datasets/JosephusCheung/GuanacoDataset) | 100k+ | 包含日文、简繁体中文、英文等多类数据，数据集原用于 Guanaco 模型训练 |
-| [Firefly 1.1M](https://huggingface.co/datasets/YeungNLP/firefly-train-1.1M) | 1.1M  | 中文对话大模型 firefly（流萤）的中文数据集，包含多个 NLP 任务 |
-| [CodeAlpaca 20k](https://huggingface.co/datasets/sahil2801/CodeAlpaca-20k) | 20k | 英文代码生成任务数据集 |
-| [Alpaca CoT](https://huggingface.co/datasets/QingyiSi/Alpaca-CoT) | 6M | 用于微调的指令数据集集合 |
-| [Web QA](https://huggingface.co/datasets/suolyer/webqa) | 36k | 百度知道汇集的中文问答数据集 |
-| [UltraChat](https://github.com/thunlp/UltraChat) | 1.57M | 清华 NLP 发布的大规模多轮对话数据集 |
+- [Example dataset](c4_demo.json)
 
-注：BELLE 数据集是由 ChatGPT 产生的数据集，不保证数据准确性，所有类 GPT 模型产生的 self-instruction 数据集均不能保证其准确性。
+In pre-training, only the `text` column will be used for model learning.
+
+```json
+[
+  {"text": "document"},
+  {"text": "document"}
+]
+```
+
+Regarding the above dataset, the *dataset description* in `dataset_info.json` should be:
+
+```json
+"dataset_name": {
+  "file_name": "data.json",
+  "columns": {
+    "prompt": "text"
+  }
+}
+```
+
+### Preference Dataset
+
+Preference datasets are used for reward modeling, DPO training, ORPO and SimPO training.
+
+It requires a better response in `chosen` column and a worse response in `rejected` column.
+
+```json
+[
+  {
+    "instruction": "human instruction (required)",
+    "input": "human input (optional)",
+    "chosen": "chosen answer (required)",
+    "rejected": "rejected answer (required)"
+  }
+]
+```
+
+Regarding the above dataset, the *dataset description* in `dataset_info.json` should be:
+
+```json
+"dataset_name": {
+  "file_name": "data.json",
+  "ranking": true,
+  "columns": {
+    "prompt": "instruction",
+    "query": "input",
+    "chosen": "chosen",
+    "rejected": "rejected"
+  }
+}
+```
+
+### KTO Dataset
+
+An additional column `kto_tag` is required. Please refer to the [sharegpt](#sharegpt-format) format for details.
+
+### Multimodal Image Dataset
+
+An additional column `images` is required. Please refer to the [sharegpt](#sharegpt-format) format for details.
+
+### Multimodal Video Dataset
+
+An additional column `videos` is required. Please refer to the [sharegpt](#sharegpt-format) format for details.
+
+## Sharegpt Format
+
+### Supervised Fine-Tuning Dataset
+
+- [Example dataset](glaive_toolcall_en_demo.json)
+
+Compared to the alpaca format, the sharegpt format allows the datasets have **more roles**, such as human, gpt, observation and function. They are presented in a list of objects in the `conversations` column.
+
+Note that the human and observation should appear in odd positions, while gpt and function should appear in even positions.
+
+```json
+[
+  {
+    "conversations": [
+      {
+        "from": "human",
+        "value": "human instruction"
+      },
+      {
+        "from": "function_call",
+        "value": "tool arguments"
+      },
+      {
+        "from": "observation",
+        "value": "tool result"
+      },
+      {
+        "from": "gpt",
+        "value": "model response"
+      }
+    ],
+    "system": "system prompt (optional)",
+    "tools": "tool description (optional)"
+  }
+]
+```
+
+Regarding the above dataset, the *dataset description* in `dataset_info.json` should be:
+
+```json
+"dataset_name": {
+  "file_name": "data.json",
+  "formatting": "sharegpt",
+  "columns": {
+    "messages": "conversations",
+    "system": "system",
+    "tools": "tools"
+  }
+}
+```
+
+### Pre-training Dataset
+
+Not yet supported, please use the [alpaca](#alpaca-format) format.
+
+### Preference Dataset
+
+- [Example dataset](dpo_en_demo.json)
+
+Preference datasets in sharegpt format also require a better message in `chosen` column and a worse message in `rejected` column.
+
+```json
+[
+  {
+    "conversations": [
+      {
+        "from": "human",
+        "value": "human instruction"
+      },
+      {
+        "from": "gpt",
+        "value": "model response"
+      },
+      {
+        "from": "human",
+        "value": "human instruction"
+      }
+    ],
+    "chosen": {
+      "from": "gpt",
+      "value": "chosen answer (required)"
+    },
+    "rejected": {
+      "from": "gpt",
+      "value": "rejected answer (required)"
+    }
+  }
+]
+```
+
+Regarding the above dataset, the *dataset description* in `dataset_info.json` should be:
+
+```json
+"dataset_name": {
+  "file_name": "data.json",
+  "formatting": "sharegpt",
+  "ranking": true,
+  "columns": {
+    "messages": "conversations",
+    "chosen": "chosen",
+    "rejected": "rejected"
+  }
+}
+```
+
+### KTO Dataset
+
+- [Example dataset](kto_en_demo.json)
+
+KTO datasets require a extra `kto_tag` column containing the boolean human feedback.
+
+```json
+[
+  {
+    "conversations": [
+      {
+        "from": "human",
+        "value": "human instruction"
+      },
+      {
+        "from": "gpt",
+        "value": "model response"
+      }
+    ],
+    "kto_tag": "human feedback [true/false] (required)"
+  }
+]
+```
+
+Regarding the above dataset, the *dataset description* in `dataset_info.json` should be:
+
+```json
+"dataset_name": {
+  "file_name": "data.json",
+  "formatting": "sharegpt",
+  "columns": {
+    "messages": "conversations",
+    "kto_tag": "kto_tag"
+  }
+}
+```
+
+### Multimodal Image Dataset
+
+- [Example dataset](mllm_demo.json)
+
+Multimodal image datasets require a `images` column containing the paths to the input images.
+
+The number of images should be identical to the `<image>` tokens in the conversations.
+
+```json
+[
+  {
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>human instruction"
+      },
+      {
+        "from": "gpt",
+        "value": "model response"
+      }
+    ],
+    "images": [
+      "image path (required)"
+    ]
+  }
+]
+```
+
+Regarding the above dataset, the *dataset description* in `dataset_info.json` should be:
+
+```json
+"dataset_name": {
+  "file_name": "data.json",
+  "formatting": "sharegpt",
+  "columns": {
+    "messages": "conversations",
+    "images": "images"
+  }
+}
+```
+
+### Multimodal Video Dataset
+
+- [Example dataset](mllm_video_demo.json)
+
+Multimodal video datasets require a `videos` column containing the paths to the input videos.
+
+The number of videos should be identical to the `<video>` tokens in the conversations.
+
+```json
+[
+  {
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>human instruction"
+      },
+      {
+        "from": "gpt",
+        "value": "model response"
+      }
+    ],
+    "videos": [
+      "video path (required)"
+    ]
+  }
+]
+```
+
+Regarding the above dataset, the *dataset description* in `dataset_info.json` should be:
+
+```json
+"dataset_name": {
+  "file_name": "data.json",
+  "formatting": "sharegpt",
+  "columns": {
+    "messages": "conversations",
+    "videos": "videos"
+  }
+}
+```
+
+### OpenAI Format
+
+The openai format is simply a special case of the sharegpt format, where the first message may be a system prompt.
+
+```json
+[
+  {
+    "messages": [
+      {
+        "role": "system",
+        "content": "system prompt (optional)"
+      },
+      {
+        "role": "user",
+        "content": "human instruction"
+      },
+      {
+        "role": "assistant",
+        "content": "model response"
+      }
+    ]
+  }
+]
+```
+
+Regarding the above dataset, the *dataset description* in `dataset_info.json` should be:
+
+```json
+"dataset_name": {
+  "file_name": "data.json",
+  "formatting": "sharegpt",
+  "columns": {
+    "messages": "messages"
+  },
+  "tags": {
+    "role_tag": "role",
+    "content_tag": "content",
+    "user_tag": "user",
+    "assistant_tag": "assistant",
+    "system_tag": "system"
+  }
+}
+```
